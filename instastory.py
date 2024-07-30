@@ -84,7 +84,7 @@ def process_image():
         return jsonify({'error': 'URL is required'}), 400
     
     url = data['url']
-    keywords = ["Viewers", "Overview","Boost"]
+    keywords = ["Viewers", "Overview"]
 
     # Download the image
     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
@@ -117,10 +117,11 @@ def process_image():
                 break
         if line_above_keyword:
             break
-    
+ 
     integers_in_line = re.findall(r'\d+', line_above_keyword) if line_above_keyword else []
+    print("integers in line")
+    print(integers_in_line)
     extracted_value = ' '.join(integers_in_line)
-    
     if extracted_value:
         result = {
             'views': extracted_value,
