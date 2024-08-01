@@ -5,7 +5,7 @@ from io import BytesIO
 import re
 
 # Replace with your image URL
-url = 'https://vf-production-storage.s3.ap-south-1.amazonaws.com/brands/fila/tasks/fila01-1719473303735/useractivities/1683183198588/1720025743048IMG_8984.PNG'
+url = 'https://vf-production-storage.s3.amazonaws.com/brands/kfc/tasks/kfc05-1720259572905/useractivities/1678786248060/1722071039421.jpg'
 # Fetch the image from the URL
 response = requests.get(url)
 image = Image.open(BytesIO(response.content))
