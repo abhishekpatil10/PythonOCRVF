@@ -284,7 +284,7 @@
 #     app.run(debug=True)
 
 
-# all working except 2,3 urls
+# all working except 2,3 urls bulk test
 from flask import Flask, request, jsonify
 import io
 import requests
@@ -413,8 +413,129 @@ def process_images():
 
     return jsonify(results)
 
+# if __name__ == '__main__':
+#     app.run(debug=True)
+
+
+
+# single test
+
+# from flask import Flask, request, jsonify
+# import io
+# import requests
+# from PIL import Image
+# import re
+# import easyocr
+# import pytesseract
+# from collections import Counter
+
+# app = Flask(__name__)
+
+@app.route('/process-single-image', methods=['POST'])
+def process_image():
+    data = request.get_json()
+    if not data or 'url' not in data or 'platform' not in data:
+        return jsonify({'error': 'URL and platform are required'}), 400
+    
+    url = data['url']
+    platform = data['platform']
+    keyword = "Viewers"
+    result = {}
+
+    # Download the image
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to download image'}), 400
+    
+    try:
+        img = Image.open(io.BytesIO(response.content))
+    except Exception as e:
+        return jsonify({'error': f'Error opening image: {str(e)}'}), 400
+
+    best_result = None
+    numbers = []
+    engine = None
+
+    # Attempt to extract text using EasyOCR
+    try:
+        img = img.convert('RGB')
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='JPEG')
+        img_bytes = img_bytes.getvalue()
+
+        reader = easyocr.Reader(['en'])
+        easyocr_result = reader.readtext(img_bytes)
+
+        for i, (bbox, text, prob) in enumerate(easyocr_result):
+            if keyword.lower() in text.lower():
+                if i > 0:
+                    number_above = easyocr_result[i - 1][1]
+                    if re.match(r'^\d+$', number_above):
+                        best_result = number_above
+                        engine = 'easyocr'
+                        break
+                if i > 1:
+                    number_above = easyocr_result[i - 2][1]
+                    if re.match(r'^\d+$', number_above):
+                        best_result = number_above
+                        engine = 'easyocr'
+                        break
+
+            # Collect all numbers for duplicate check
+            if re.match(r'^\d+$', text):
+                numbers.append(text)
+
+    except Exception as e:
+        return jsonify({'error': f'Error with easyocr: {str(e)}'}), 400
+
+    # If no result found with EasyOCR, try pytesseract
+    if not best_result:
+        try:
+            text = pytesseract.image_to_string(img)
+            lines = text.split('\n')
+            line_above_keyword = None
+
+            for i, line in enumerate(lines):
+                if keyword in line:
+                    if i > 0:
+                        if lines[i - 1].strip():
+                            line_above_keyword = lines[i - 1].strip()
+                        elif i > 1 and lines[i - 2].strip():
+                            line_above_keyword = lines[i - 2].strip()
+                    break
+
+            integers_in_line = re.findall(r'\d+', line_above_keyword) if line_above_keyword else []
+            best_result = integers_in_line[0] if integers_in_line else None
+            if best_result:
+                engine = 'pytesseract'
+        except Exception as e:
+            return jsonify({'error': f'Error with pytesseract: {str(e)}'}), 400
+    
+    # Check for duplicate numbers if no direct result found
+    if not best_result and numbers:
+        number_counts = Counter(numbers)
+        most_common = number_counts.most_common(1)
+        if most_common:
+            best_result = most_common[0][0]
+            engine = 'easyocr'
+
+    # Create the result
+    if best_result:
+        result = {
+            'views': best_result,
+            'platform': platform,
+            'type': 'story',
+            'engine': engine
+        }
+    else:
+        return jsonify({'error': 'No suitable result found'}), 400
+
+    return jsonify(result)
+
 if __name__ == '__main__':
     app.run(debug=True)
+
 
 
 # from flask import Flask, request, jsonify
