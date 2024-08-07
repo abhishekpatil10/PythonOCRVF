@@ -295,8 +295,8 @@ import pytesseract
 from collections import Counter
 
 app = Flask(__name__)
-
-@app.route('/process_images', methods=['POST'])
+# instagram story
+@app.route('/get-bulk-count', methods=['POST'])
 def process_images():
     data = request.get_json()
     if not data or 'urls' not in data or not isinstance(data['urls'], list):
@@ -413,25 +413,7 @@ def process_images():
 
     return jsonify(results)
 
-# if __name__ == '__main__':
-#     app.run(debug=True)
-
-
-
-# single test
-
-# from flask import Flask, request, jsonify
-# import io
-# import requests
-# from PIL import Image
-# import re
-# import easyocr
-# import pytesseract
-# from collections import Counter
-
-# app = Flask(__name__)
-
-@app.route('/process-single-image', methods=['POST'])
+@app.route('/get-count', methods=['POST'])
 def process_image():
     data = request.get_json()
     if not data or 'url' not in data or 'platform' not in data:
@@ -532,6 +514,96 @@ def process_image():
         return jsonify({'error': 'No suitable result found'}), 400
 
     return jsonify(result)
+
+
+
+@app.route('/get-reel-count', methods=['POST'])
+def process_reel_image():
+    data = request.get_json()
+    if not data or 'url' not in data or 'platform' not in data:
+        return jsonify({'error': 'URL and platform are required'}), 400
+    
+    url = data['url']
+    platform = data['platform']
+    result = {}
+
+    # Download the image
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to download image'}), 400
+    
+    try:
+        img = Image.open(io.BytesIO(response.content))
+    except Exception as e:
+        return jsonify({'error': f'Error opening image: {str(e)}'}), 400
+
+    # Crop the image to the bottom section
+    width, height = img.size
+    bottom_crop_height = height // 4  # Adjust this value as needed to get the desired bottom section
+    img = img.crop((0, height - bottom_crop_height, width, height))
+
+    numbers = []
+    best_result = None
+    engine = None
+
+    # Regular expression to match numbers, including formats like 77.4K
+    number_regex = r'(\d+(?:\.\d+)?[KM]?)'
+    def parse_number(text):
+        if text.endswith('K'):
+            return int(float(text[:-1]) * 1000)
+        elif text.endswith('M'):
+            return int(float(text[:-1]) * 1000000)
+        else:
+            return int(text.replace(',', ''))
+
+    # Attempt to extract text using EasyOCR
+    try:
+        img = img.convert('RGB')
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='JPEG')
+        img_bytes = img_bytes.getvalue()
+
+        reader = easyocr.Reader(['en'])
+        easyocr_result = reader.readtext(img_bytes)
+        for bbox, text, prob in easyocr_result:
+            matches = re.findall(number_regex, text.replace(',', ''))
+            numbers.extend(matches)
+
+    except Exception as e:
+        return jsonify({'error': f'Error with easyocr: {str(e)}'}), 400
+
+    # If no result found with EasyOCR, try pytesseract
+    if not numbers:
+        try:
+            text = pytesseract.image_to_string(img)
+            matches = re.findall(number_regex, text.replace(',', ''))
+            numbers.extend(matches)
+
+        except Exception as e:
+            return jsonify({'error': f'Error with pytesseract: {str(e)}'}), 400
+    
+    # Check for duplicate numbers if no direct result found
+    if numbers:
+        number_counts = Counter(numbers)
+        most_common = number_counts.most_common(1)
+        if most_common:
+            best_result = parse_number(most_common[0][0])
+            engine = 'easyocr' if most_common[0][0] in numbers else 'pytesseract'
+
+    # Create the result
+    if best_result:
+        result = {
+            'views': best_result,
+            'platform': platform,
+            'type': 'story',
+            'engine': engine
+        }
+    else:
+        return jsonify({'error': 'No suitable result found'}), 400
+
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
