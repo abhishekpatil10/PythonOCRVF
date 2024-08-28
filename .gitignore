@@ -1,0 +1,33 @@
+# Ignore Python bytecode and cache files
+__pycache__/
+*.py[cod]
+
+# Ignore virtual environment directory
+myenv/
+
+# Ignore any environment variable files
+.env
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+
+# Ignore experiment folder (if it contains temporary or experiment files)
+experiment/
+
+# Ignore compiled files or executables
+*.out
+*.o
+*.exe
+*.dll
+*.so
+
+# Ignore other unnecessary files
+*.swp
+*.swo
+*.bak
+*.orig
+
+# Ignore IDE/editor directories
+.vscode/
+.idea/
