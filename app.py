@@ -9,9 +9,10 @@ import re
 import easyocr
 import pytesseract
 from collections import Counter
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 # healthcheck api
 @app.route('/healthcheck',methods=["GET"])
 def healthcheck():
