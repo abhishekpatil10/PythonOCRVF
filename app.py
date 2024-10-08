@@ -232,7 +232,7 @@ def process_image():
             'views': best_result,
             'platform': platform,
             'type': 'story',
-            'engine': engine
+            # 'engine': engine
         }
     else:
         return jsonify({'error': 'No suitable result found'}), 400
@@ -495,6 +495,8 @@ def extract_metrics():
         
         # Assuming the order is likes, comments, shares
         response_object = {
+            'platform': platform,
+            'type': 'reel',
             'likes': extracted_numbers[0] if len(extracted_numbers) > 0 else 0,
             'comments': extracted_numbers[1] if len(extracted_numbers) > 1 else 0,
             'shares': extracted_numbers[2] if len(extracted_numbers) > 2 else 0
