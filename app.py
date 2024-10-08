@@ -471,15 +471,15 @@ def download_image(url):
     except requests.exceptions.RequestException as e:
         raise ValueError(f"Error downloading image: {e}")
 
-# instagram reel
+# instagram reel using this 
 @app.route('/get-reel-count', methods=['POST'])
 def extract_metrics():
     try:
         data = request.json
-        image_url = data.get('image_url')
-        
-        if not image_url:
-            return jsonify({'error': 'Image URL is required'}), 400
+        image_url = data.get('url')
+        platform = data.get('platform')
+        if not image_url or not platform:
+            return jsonify({'error': 'URL and platform are required'}), 400
         
         # Load image from URL
         img = download_image(image_url)
