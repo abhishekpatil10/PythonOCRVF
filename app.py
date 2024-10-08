@@ -513,10 +513,13 @@ def extract_metrics():
 @app.route('/get-reel-views-count', methods=['POST'])
 def process_reel_image():
     data = request.get_json()
-    if not data or 'url' not in data:
-        return jsonify({'error': 'URL is required'}), 400
+    if not data or 'url' not in data or 'platform' not in data:
+        return jsonify({'error': 'URL and platform are required'}), 400
+    # if not data or 'url' not in data:
+    #     return jsonify({'error': 'URL is required'}), 400
     
     url = data['url']
+    platform = data['platform']
     result = {}
 
     # Download the image
@@ -591,8 +594,9 @@ def process_reel_image():
     # Create the result
     result = {
         'views': best_result,
-        'type': 'story',
-        'engine': engine
+        'engine': engine,
+        'platform': platform,
+        'type': 'reel',
     }
 
     return jsonify(result)
