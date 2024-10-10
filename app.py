@@ -4,7 +4,7 @@ import io
 from matplotlib import pyplot as plt
 import numpy as np
 import requests
-from PIL import Image
+from PIL import Image,ImageEnhance,ImageFilter
 import re
 import easyocr
 import pytesseract
@@ -54,7 +54,7 @@ def process_images():
             img.save(img_bytes, format='JPEG')
             img_bytes = img_bytes.getvalue()
 
-            reader = easyocr.Reader(['en'])
+            reader = easyocr.Reader(['en'], gpu=False)
             easyocr_result = reader.readtext(img_bytes)
 
             for i, (bbox, text, prob) in enumerate(easyocr_result):
@@ -170,7 +170,7 @@ def process_image():
         img.save(img_bytes, format='JPEG')
         img_bytes = img_bytes.getvalue()
 
-        reader = easyocr.Reader(['en'])
+        reader = easyocr.Reader(['en'], gpu=False)
         easyocr_result = reader.readtext(img_bytes)
 
         for i, (bbox, text, prob) in enumerate(easyocr_result):
@@ -288,7 +288,7 @@ def process_image():
         img.save(img_bytes, format='JPEG')
         img_bytes = img_bytes.getvalue()
 
-        reader = easyocr.Reader(['en'])
+        reader = easyocr.Reader(['en'], gpu=False)
         easyocr_result = reader.readtext(img_bytes)
         for bbox, text, prob in easyocr_result:
             matches = re.findall(number_regex, text.replace(',', ''))
@@ -389,7 +389,7 @@ def process_image():
         img_with_border.save(img_bytes, format='JPEG')
         img_bytes = img_bytes.getvalue()
 
-        reader = easyocr.Reader(['en'])
+        reader = easyocr.Reader(['en'], gpu=False)
         easyocr_result = reader.readtext(img_bytes)
         for bbox, text, prob in easyocr_result:
             print(f"Text : {text}, prob : {prob}")
@@ -497,12 +497,18 @@ def extract_metrics():
         response_object = {
             'platform': platform,
             'type': 'reel',
-            'likes': extracted_numbers[0] if len(extracted_numbers) > 0 else 0,
-            'comments': extracted_numbers[1] if len(extracted_numbers) > 1 else 0,
-            'shares': extracted_numbers[2] if len(extracted_numbers) > 2 else 0
+            'likes': int(extracted_numbers[0]) if len(extracted_numbers) > 0 else 0,
+            'comments': int(extracted_numbers[1]) if len(extracted_numbers) > 1 else 0,
+            'shares': int(extracted_numbers[2]) if len(extracted_numbers) > 2 else 0
         }
         
+        # Ensure all counts are integers, even if they were strings
+        response_object['likes'] = int(response_object['likes'])
+        response_object['comments'] = int(response_object['comments'])
+        response_object['shares'] = int(response_object['shares'])
+        
         return jsonify(response_object), 200
+
     
     except ValueError as ve:
         return jsonify({'error': str(ve)}), 400
@@ -559,7 +565,7 @@ def process_reel_image():
         img.save(img_bytes, format='JPEG')
         img_bytes = img_bytes.getvalue()
 
-        reader = easyocr.Reader(['en'])
+        reader = easyocr.Reader(['en'], gpu=False)
         easyocr_result = reader.readtext(img_bytes)
         for bbox, text, prob in easyocr_result:
             matches = re.findall(number_regex, text.replace(',', ''))
@@ -600,7 +606,6 @@ def process_reel_image():
     }
 
     return jsonify(result)
-
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", debug=True, port=5000)
