@@ -10,7 +10,7 @@ import easyocr
 import pytesseract
 from collections import Counter
 from flask_cors import CORS
-
+import os
 app = Flask(__name__)
 CORS(app)
 # healthcheck api
