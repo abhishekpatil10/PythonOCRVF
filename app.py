@@ -225,7 +225,7 @@ def process_image():
     # Create the result
     if best_result:
         result = {
-            'views': best_result,
+            'views': int(best_result),
             'platform': platform,
             'type': 'story',
             'parameter':'views'
