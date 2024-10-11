@@ -58,22 +58,18 @@ def process_images():
             easyocr_result = reader.readtext(img_bytes)
 
             for i, (bbox, text, prob) in enumerate(easyocr_result):
-                print(f"text : {text} prob : {prob}")
                 if keyword.lower() in text.lower():
                     if i > 0:
-                        print(f"easy peasy : {easyocr_result[i]}")
                         number_above = easyocr_result[i - 1][1]
                         if re.match(r'^\d+$', number_above):
                             best_result = number_above
                             engine = 'easyocr'
-                            print(f"343 best result : {best_result}")
                             break
                     if i > 1:
                         number_above = easyocr_result[i - 2][1]
                         if re.match(r'^\d+$', number_above):
                             best_result = number_above
                             engine = 'easyocr'
-                            print(f"350 best result : {best_result}")
                             break
 
                 # Collect all numbers for duplicate check
@@ -232,6 +228,7 @@ def process_image():
             'views': best_result,
             'platform': platform,
             'type': 'story',
+            'parameter':'views'
             # 'engine': engine
         }
     else:
@@ -313,7 +310,6 @@ def process_image():
         most_common = number_counts.most_common(1)
         if most_common:
             best_result = parse_number(most_common[0][0])
-            print(f"best result : {parse_number(most_common[0])}")
             engine = 'easyocr' if most_common[0][0] in numbers else 'pytesseract'            
     # Create the result
     if best_result:
@@ -392,7 +388,6 @@ def process_image():
         reader = easyocr.Reader(['en'], gpu=False)
         easyocr_result = reader.readtext(img_bytes)
         for bbox, text, prob in easyocr_result:
-            print(f"Text : {text}, prob : {prob}")
             matches = re.findall(number_regex, text.replace(',', ''))
             numbers.extend(matches)
 
@@ -499,7 +494,8 @@ def extract_metrics():
             'type': 'reel',
             'likes': int(extracted_numbers[0]) if len(extracted_numbers) > 0 else 0,
             'comments': int(extracted_numbers[1]) if len(extracted_numbers) > 1 else 0,
-            'shares': int(extracted_numbers[2]) if len(extracted_numbers) > 2 else 0
+            'shares': int(extracted_numbers[2]) if len(extracted_numbers) > 2 else 0,
+            'parameter':'likes,comments,shares'
         }
         
         # Ensure all counts are integers, even if they were strings
@@ -516,96 +512,197 @@ def extract_metrics():
         return jsonify({'error': 'An error occurred during processing: ' + str(e)}), 500
 
 
+# @app.route('/get-reel-views-count', methods=['POST'])
+# def process_reel_image():
+#     data = request.get_json()
+#     if not data or 'url' not in data or 'platform' not in data:
+#         return jsonify({'error': 'URL and platform are required'}), 400
+#     # if not data or 'url' not in data:
+#     #     return jsonify({'error': 'URL is required'}), 400
+    
+#     url = data['url']
+#     platform = data['platform']
+#     result = {}
+
+#     # Download the image
+#     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+#     response = requests.get(url, headers=headers)
+#     if response.status_code != 200:
+#         return jsonify({'error': 'Failed to download image'}), 400
+    
+#     try:
+#         img = Image.open(io.BytesIO(response.content))
+#     except Exception as e:
+#         return jsonify({'error': f'Error opening image: {str(e)}'}), 400
+
+#     # Crop the image to the bottom section
+#     width, height = img.size
+#     bottom_crop_height = height // 4  # Adjust this value as needed to get the desired bottom section
+#     img = img.crop((0, height - bottom_crop_height, width, height))
+
+#     best_text = None
+#     best_prob = 0.0
+#     engine = None
+
+#     # Regular expression to match numbers, including formats like 77.4K
+#     number_regex = r'(\d+(?:\.\d+)?[KM]?)'
+#     def parse_number(text):
+#         if text.endswith('K'):
+#             return int(float(text[:-1]) * 1000)
+#         elif text.endswith('M'):
+#             return int(float(text[:-1]) * 1000000)
+#         else:
+#             return int(text.replace(',', ''))
+
+#     # Attempt to extract text using EasyOCR
+#     try:
+#         img = img.convert('RGB')
+#         img_bytes = io.BytesIO()
+#         img.save(img_bytes, format='JPEG')
+#         img_bytes = img_bytes.getvalue()
+
+#         reader = easyocr.Reader(['en'], gpu=False)
+#         easyocr_result = reader.readtext(img_bytes)
+#         for bbox, text, prob in easyocr_result:
+#             matches = re.findall(number_regex, text.replace(',', ''))
+#             if matches and prob > best_prob:  # Check if this text has a higher probability
+#                 best_text = matches[0]
+#                 best_prob = prob
+#                 engine = 'easyocr'
+#                 print(f"Found text: {text} with probability: {prob}")  # Logging the text and probability
+
+#     except Exception as e:
+#         return jsonify({'error': f'Error with easyocr: {str(e)}'}), 400
+
+#     # If no result found with EasyOCR, try pytesseract
+#     if best_text is None:
+#         try:
+#             text = pytesseract.image_to_string(img)
+#             matches = re.findall(number_regex, text.replace(',', ''))
+#             if matches:
+#                 best_text = matches[0]
+#                 engine = 'pytesseract'
+#                 print(f"Found text with pytesseract: {text}")
+
+#         except Exception as e:
+#             return jsonify({'error': f'Error with pytesseract: {str(e)}'}), 400
+
+#     # Parse the best number
+#     if best_text:
+#         best_result = parse_number(best_text)
+#     else:
+#         return jsonify({'error': 'No suitable result found'}), 400
+
+#     # Create the result
+#     result = {
+#         'views': best_result,
+#         'engine': engine,
+#         'platform': platform,
+#         'type': 'reel',
+#     }
+
+#     return jsonify(result)
+
+
+
+
+# new
 @app.route('/get-reel-views-count', methods=['POST'])
-def process_reel_image():
-    data = request.get_json()
-    if not data or 'url' not in data or 'platform' not in data:
-        return jsonify({'error': 'URL and platform are required'}), 400
-    # if not data or 'url' not in data:
-    #     return jsonify({'error': 'URL is required'}), 400
-    
-    url = data['url']
-    platform = data['platform']
-    result = {}
-
-    # Download the image
-    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return jsonify({'error': 'Failed to download image'}), 400
-    
+def extract_metrics_count():
     try:
-        img = Image.open(io.BytesIO(response.content))
-    except Exception as e:
-        return jsonify({'error': f'Error opening image: {str(e)}'}), 400
-
-    # Crop the image to the bottom section
-    width, height = img.size
-    bottom_crop_height = height // 4  # Adjust this value as needed to get the desired bottom section
-    img = img.crop((0, height - bottom_crop_height, width, height))
-
-    best_text = None
-    best_prob = 0.0
-    engine = None
-
-    # Regular expression to match numbers, including formats like 77.4K
-    number_regex = r'(\d+(?:\.\d+)?[KM]?)'
-    def parse_number(text):
-        if text.endswith('K'):
-            return int(float(text[:-1]) * 1000)
-        elif text.endswith('M'):
-            return int(float(text[:-1]) * 1000000)
-        else:
-            return int(text.replace(',', ''))
-
-    # Attempt to extract text using EasyOCR
-    try:
-        img = img.convert('RGB')
-        img_bytes = io.BytesIO()
-        img.save(img_bytes, format='JPEG')
-        img_bytes = img_bytes.getvalue()
-
+        data = request.json
+        image_url = data.get('url')
+        platform = data.get('platform')
+        
+        if not image_url or not platform:
+            return jsonify({'error': 'URL and platform are required'}), 400
+        
+        # Load image from URL
+        img = download_image(image_url)
+        
+        if img is None:
+            return jsonify({'error': 'Failed to load image from the URL'}), 400
+        
+        # Crop the image to the bottom-left section
+        cropped_img = crop_bottom_left(img)
+        
+        # Convert the cropped Pillow image to a NumPy array
+        img_np = np.array(cropped_img)
+        
+        # Initialize EasyOCR reader
         reader = easyocr.Reader(['en'], gpu=False)
-        easyocr_result = reader.readtext(img_bytes)
-        for bbox, text, prob in easyocr_result:
-            matches = re.findall(number_regex, text.replace(',', ''))
-            if matches and prob > best_prob:  # Check if this text has a higher probability
-                best_text = matches[0]
-                best_prob = prob
-                engine = 'easyocr'
-                print(f"Found text: {text} with probability: {prob}")  # Logging the text and probability
+        text_detections = reader.readtext(img_np)
+        
+        # Debug: Print OCR detections for inspection
+        
+        # Extract numbers from the detections
+        extracted_numbers = extract_numbers_count(text_detections)
+        
+        # Debug: Print the extracted numbers
+        
+        # Prepare response object
+        response_object = {
+            'platform': platform,
+            'type': 'reel',
+            'views': extracted_numbers[0] if len(extracted_numbers) > 0 else 'No views detected',
+            'parameter':'views'
+        }
+        
+        return jsonify(response_object), 200
 
+    except ValueError as ve:
+        return jsonify({'error': str(ve)}), 400
     except Exception as e:
-        return jsonify({'error': f'Error with easyocr: {str(e)}'}), 400
+        return jsonify({'error': 'An error occurred during processing: ' + str(e)}), 500
 
-    # If no result found with EasyOCR, try pytesseract
-    if best_text is None:
-        try:
-            text = pytesseract.image_to_string(img)
-            matches = re.findall(number_regex, text.replace(',', ''))
-            if matches:
-                best_text = matches[0]
-                engine = 'pytesseract'
-                print(f"Found text with pytesseract: {text}")
 
-        except Exception as e:
-            return jsonify({'error': f'Error with pytesseract: {str(e)}'}), 400
+# Helper function to crop the image to the bottom-left section
+def crop_bottom_left(img):
+    try:
+        height, width = img.shape[:2]
 
-    # Parse the best number
-    if best_text:
-        best_result = parse_number(best_text)
+        # Define the region to crop (bottom-left quarter)
+        left = 0
+        top = height - (height // 4)  # Bottom quarter
+        right = width // 2
+        bottom = height
+
+        # Crop the image to the bottom-left quarter
+        cropped_img = img[top:bottom, left:right]
+
+        return cropped_img
+    except Exception as e:
+        print(f"Error during cropping: {e}")  # Debugging: Handle cropping errors
+        raise e
+
+def extract_numbers_count(text_detections):
+    number_regex = r'(\d{1,3}(?:,\d{3})*(?:\.\d+)?[KM]?)' # Regex to match numbers like 3K, 4.5M, etc.
+    extracted_numbers = []
+    for detection in text_detections:
+        if isinstance(detection, tuple) and len(detection) == 3:
+            bbox, text, confidence = detection
+            match = re.search(number_regex, text)
+            if match:
+                extracted_number = parse_number(match.group(1))
+                extracted_numbers.append(extracted_number)
+            else:
+                # Debugging: Print if no number is found
+                print(f"No number found in: '{text}'")
+        else:
+            # Debugging: Print if the detection isn't valid
+            print(f"Invalid detection: {detection}")
+
+    return extracted_numbers
+
+# Function to parse the matched number
+def parse_number(text):
+    if text.endswith('K'):
+        return int(float(text[:-1]) * 1000)
+    elif text.endswith('M'):
+        return int(float(text[:-1]) * 1000000)
     else:
-        return jsonify({'error': 'No suitable result found'}), 400
+        return int(text.replace(',', ''))
 
-    # Create the result
-    result = {
-        'views': best_result,
-        'engine': engine,
-        'platform': platform,
-        'type': 'reel',
-    }
-
-    return jsonify(result)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", debug=True, port=5000)
