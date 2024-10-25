@@ -167,7 +167,7 @@ def process_image():
         img.save(img_bytes, format='JPEG')
         img_bytes = img_bytes.getvalue()
 
-        reader = easyocr.Reader(['en'], gpu=False, detail=0)
+        reader = easyocr.Reader(['en'], gpu=False)
         easyocr_result = reader.readtext(img_bytes)
 
         for i, (bbox, text, prob) in enumerate(easyocr_result):
@@ -721,9 +721,9 @@ def extract_data():
         reader = easyocr.Reader(['en'], gpu=False)
 
         # Perform OCR on each cropped area
-        like_results = reader.readtext(like_area, detail=1)
-        comment_results = reader.readtext(comment_area, detail=1)
-        share_results = reader.readtext(share_area_resized, detail=1)
+        like_results = reader.readtext(like_area)
+        comment_results = reader.readtext(comment_area)
+        share_results = reader.readtext(share_area_resized)
         # Extract results for likes, comments, and shares
         likes = extract_digit(like_results)
         comments = extract_digit(comment_results)
@@ -843,14 +843,14 @@ def extract_counts():
     check_area = sharpened_image[int(height * 0.70):int(height * 0.90), int(width * 0.00):int(width * 0.30)]
     
     reader = easyocr.Reader(['en'], gpu=False)
-    check_results = reader.readtext(check_area, detail=1)
+    check_results = reader.readtext(check_area)
 
     if contains_view_insights_or_collaborators(check_results):
         all_counts_area = sharpened_image[int(height * 0.78):int(height * 0.90), int(width * 0.00):int(width * 0.70)]
     else:
         all_counts_area = sharpened_image[int(height * 0.65):int(height * 0.78), int(width * 0.00):int(width * 0.70)]
 
-    ocr_results = reader.readtext(all_counts_area, detail=1)
+    ocr_results = reader.readtext(all_counts_area)
 
     likes_from_text = extract_liked_by_text(ocr_results)
     comments_from_text = extract_comments_from_text(ocr_results)
@@ -880,9 +880,10 @@ def extract_counts():
 
     return jsonify({
         "likes": likes,
-        "comments": comments})
+        "comments": comments,
+        "platform":platform,"parameter":"likes,comments","type":"post"})
 
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", debug=True, port=5000)
+    app.run(host="0.0.0.0", debug=True, port=5000)                                                                                                                                                                                                                                                                                                                                                                                          
