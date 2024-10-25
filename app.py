@@ -11,6 +11,7 @@ import pytesseract
 from collections import Counter
 from flask_cors import CORS
 import os
+
 app = Flask(__name__)
 CORS(app)
 # healthcheck api
@@ -166,7 +167,7 @@ def process_image():
         img.save(img_bytes, format='JPEG')
         img_bytes = img_bytes.getvalue()
 
-        reader = easyocr.Reader(['en'], gpu=False)
+        reader = easyocr.Reader(['en'], gpu=False, detail=0)
         easyocr_result = reader.readtext(img_bytes)
 
         for i, (bbox, text, prob) in enumerate(easyocr_result):
@@ -466,9 +467,9 @@ def download_image(url):
     except requests.exceptions.RequestException as e:
         raise ValueError(f"Error downloading image: {e}")
 
-# instagram reel using this 
-@app.route('/get-reel-count', methods=['POST'])
-def extract_metrics():
+# instagram reel using this working code existing before 22 Oct 2024
+# @app.route('/get-reel-count', methods=['POST'])
+# def extract_metrics():
     try:
         data = request.json
         image_url = data.get('url')
@@ -487,7 +488,7 @@ def extract_metrics():
         
         # Extract numbers from the detections
         extracted_numbers = extract_numbers(img, text_detections)
-        
+        print(f"491 ::",extracted_numbers)
         # Assuming the order is likes, comments, shares
         response_object = {
             'platform': platform,
@@ -512,101 +513,7 @@ def extract_metrics():
         return jsonify({'error': 'An error occurred during processing: ' + str(e)}), 500
 
 
-# @app.route('/get-reel-views-count', methods=['POST'])
-# def process_reel_image():
-#     data = request.get_json()
-#     if not data or 'url' not in data or 'platform' not in data:
-#         return jsonify({'error': 'URL and platform are required'}), 400
-#     # if not data or 'url' not in data:
-#     #     return jsonify({'error': 'URL is required'}), 400
-    
-#     url = data['url']
-#     platform = data['platform']
-#     result = {}
-
-#     # Download the image
-#     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-#     response = requests.get(url, headers=headers)
-#     if response.status_code != 200:
-#         return jsonify({'error': 'Failed to download image'}), 400
-    
-#     try:
-#         img = Image.open(io.BytesIO(response.content))
-#     except Exception as e:
-#         return jsonify({'error': f'Error opening image: {str(e)}'}), 400
-
-#     # Crop the image to the bottom section
-#     width, height = img.size
-#     bottom_crop_height = height // 4  # Adjust this value as needed to get the desired bottom section
-#     img = img.crop((0, height - bottom_crop_height, width, height))
-
-#     best_text = None
-#     best_prob = 0.0
-#     engine = None
-
-#     # Regular expression to match numbers, including formats like 77.4K
-#     number_regex = r'(\d+(?:\.\d+)?[KM]?)'
-#     def parse_number(text):
-#         if text.endswith('K'):
-#             return int(float(text[:-1]) * 1000)
-#         elif text.endswith('M'):
-#             return int(float(text[:-1]) * 1000000)
-#         else:
-#             return int(text.replace(',', ''))
-
-#     # Attempt to extract text using EasyOCR
-#     try:
-#         img = img.convert('RGB')
-#         img_bytes = io.BytesIO()
-#         img.save(img_bytes, format='JPEG')
-#         img_bytes = img_bytes.getvalue()
-
-#         reader = easyocr.Reader(['en'], gpu=False)
-#         easyocr_result = reader.readtext(img_bytes)
-#         for bbox, text, prob in easyocr_result:
-#             matches = re.findall(number_regex, text.replace(',', ''))
-#             if matches and prob > best_prob:  # Check if this text has a higher probability
-#                 best_text = matches[0]
-#                 best_prob = prob
-#                 engine = 'easyocr'
-#                 print(f"Found text: {text} with probability: {prob}")  # Logging the text and probability
-
-#     except Exception as e:
-#         return jsonify({'error': f'Error with easyocr: {str(e)}'}), 400
-
-#     # If no result found with EasyOCR, try pytesseract
-#     if best_text is None:
-#         try:
-#             text = pytesseract.image_to_string(img)
-#             matches = re.findall(number_regex, text.replace(',', ''))
-#             if matches:
-#                 best_text = matches[0]
-#                 engine = 'pytesseract'
-#                 print(f"Found text with pytesseract: {text}")
-
-#         except Exception as e:
-#             return jsonify({'error': f'Error with pytesseract: {str(e)}'}), 400
-
-#     # Parse the best number
-#     if best_text:
-#         best_result = parse_number(best_text)
-#     else:
-#         return jsonify({'error': 'No suitable result found'}), 400
-
-#     # Create the result
-#     result = {
-#         'views': best_result,
-#         'engine': engine,
-#         'platform': platform,
-#         'type': 'reel',
-#     }
-
-#     return jsonify(result)
-
-
-
-
-# new
+# new logic for ocr reel count after 22 Oct 2024
 @app.route('/get-reel-views-count', methods=['POST'])
 def extract_metrics_count():
     try:
@@ -702,6 +609,278 @@ def parse_number(text):
         return int(float(text[:-1]) * 1000000)
     else:
         return int(text.replace(',', ''))
+
+
+
+# new logic for reels - more accurate then prev..
+
+# Function to load image from URL
+def load_image_from_url(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        img_arr = np.array(bytearray(response.content), dtype=np.uint8)
+        img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+        return img
+    else:
+        return None
+
+# Function to convert text like "20K" or "2M" to actual numbers
+def convert_to_number(text):
+    # Remove all non-numeric, non-KM characters but keep digits and commas
+    cleaned_text = re.sub(r'[^0-9KM,]', '', text.upper().strip())
+    
+    # Ensure text contains only valid characters (digits, 'K', 'M', and optionally a decimal point)
+    if not re.match(r'^[\d,]*[KM]?$|^[\d,]+$', cleaned_text):
+        return None  # Return None if the text doesn't match the expected format
+    
+    cleaned_text = cleaned_text.replace(',', '')  # Remove commas for easier conversion
+    if 'K' in cleaned_text:
+        return int(float(cleaned_text.replace('K', '')) * 1000)  # Correctly handles decimals
+    elif 'M' in cleaned_text:
+        return int(float(cleaned_text.replace('M', '')) * 1000000)  # Correctly handles decimals
+    elif cleaned_text.isdigit():
+        return int(cleaned_text)
+    return None
+
+# Function to extract the best valid result
+def extract_digit(ocr_results, min_confidence=0.6):
+    # If only one result is found, return it directly
+    if len(ocr_results) == 1:
+        text, prob = ocr_results[0][1], ocr_results[0][2]
+        print(f"Single result extracted: {text} with confidence {prob}")
+        return convert_to_number(text)
+
+    # If multiple results are found, return the one with the highest confidence
+    best_match = None
+    best_confidence = min_confidence  # Set minimum confidence threshold
+    
+    for (bbox, text, prob) in ocr_results:
+        cleaned_text = text.replace(' ', '').upper()
+        
+        # Only process text that contains digits or valid characters like 'K', 'M'
+        if re.match(r'^[0-9,]+(\.[0-9]+)?[KM]?$|^[0-9,]+$', cleaned_text):
+            print(f"Extracted valid text for conversion: {cleaned_text} with confidence {prob}")  # Debugging output
+            
+            # If the confidence is higher than the current best, update best_match
+            if prob >= best_confidence:
+                num = convert_to_number(cleaned_text)
+                if num is not None:
+                    best_match = num
+                    best_confidence = prob
+        else:
+            print(f"Ignored invalid text: {cleaned_text}")  # Ignore invalid text containing unwanted alphabets or symbols
+
+    return best_match if best_match is not None else 0  # Return best valid number or 0 if no valid number is found
+
+@app.route('/get-reel-count', methods=['POST'])
+def extract_data():
+    try:
+        data = request.get_json()
+
+        # Get platform and URL from request body
+        platform = data.get('platform')
+        url = data.get('url')
+
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
+
+        # Load image
+        uploaded_img = load_image_from_url(url)
+        if uploaded_img is None:
+            return jsonify({"error": "Error loading image. Please check the URL."}), 400
+
+        # Convert the image to grayscale for better OCR results
+        gray_uploaded_img = cv2.cvtColor(uploaded_img, cv2.COLOR_BGR2GRAY)
+
+        # Preprocessing for likes area (contrast enhancement)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        likes_enhanced = clahe.apply(gray_uploaded_img)
+
+        # Apply sharpening to the likes area
+        kernel = np.array([[0, -1, 0], 
+                           [-1, 5,-1], 
+                           [0, -1, 0]])
+        sharpened_likes = cv2.filter2D(likes_enhanced, -1, kernel)
+
+        # Preprocessing for comments and shares area
+        _, comments_preprocessed = cv2.threshold(gray_uploaded_img, 150, 255, cv2.THRESH_BINARY)
+        _, shares_preprocessed = cv2.threshold(gray_uploaded_img, 180, 255, cv2.THRESH_BINARY)
+
+        # Define the areas for likes, comments, and shares
+        height, width = uploaded_img.shape[:2]
+
+        # Crop areas for like, comment, and share counts
+        like_area = sharpened_likes[int(height * 0.50):int(height * 0.65), int(width * 0.8):width]
+        comment_area = comments_preprocessed[int(height * 0.60):int(height * 0.75), int(width * 0.8):width]
+        share_area = shares_preprocessed[int(height * 0.70):int(height * 0.85), int(width * 0.8):width]
+
+        # Resize the share area for improved OCR accuracy
+        share_area_resized = cv2.resize(share_area, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+        # Initialize EasyOCR Reader
+        reader = easyocr.Reader(['en'], gpu=False)
+
+        # Perform OCR on each cropped area
+        like_results = reader.readtext(like_area, detail=1)
+        comment_results = reader.readtext(comment_area, detail=1)
+        share_results = reader.readtext(share_area_resized, detail=1)
+        # Extract results for likes, comments, and shares
+        likes = extract_digit(like_results)
+        comments = extract_digit(comment_results)
+        shares = extract_digit(share_results)
+
+        # Return the results as JSON
+        return jsonify({
+            "platform": platform,
+            "likes": likes,
+            "comments": comments,
+            "shares": shares,
+            "type":"reel",
+            "parameter":"likes,comments,shares"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# instagram post logic
+
+# Load the image from the URL
+def load_image_from_url(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        img_arr = np.array(bytearray(response.content), dtype=np.uint8)
+        img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+        return img
+    else:
+        return None
+
+# Function to convert text like "20K" or "2M" to actual numbers
+def convert_to_number(text):
+    cleaned_text = re.sub(r'[^0-9KM,]', '', text.upper().strip())
+    if not re.match(r'^[\d,]*[KM]?$|^[\d,]+$', cleaned_text):
+        return 0
+    cleaned_text = cleaned_text.replace(',', '')
+    try:
+        if 'K' in cleaned_text:
+            return int(float(cleaned_text.replace('K', '')) * 1000)
+        elif 'M' in cleaned_text:
+            return int(float(cleaned_text.replace('M', '')) * 1000000)
+        elif cleaned_text.isdigit():
+            return int(cleaned_text)
+    except ValueError:
+        return 0
+    return 0
+
+# Extract the best valid result
+def extract_digit(ocr_results):
+    valid_digits = []
+    for result in ocr_results:
+        if len(result) == 3:
+            bbox, text, prob = result
+            cleaned_text = text.replace(' ', '').upper()
+            cleaned_text = re.sub(r'^Q([0-9]+)$', r'\1', cleaned_text)
+            if re.match(r'^[0-9,]+(\.[0-9]+)?[KM]?$|^[0-9,]+$', cleaned_text):
+                num = convert_to_number(cleaned_text)
+                if num is not None:
+                    valid_digits.append((num, bbox))
+    if len(valid_digits) == 1:
+        return valid_digits[0][0]
+    return max(valid_digits, key=lambda x: x[1])[0] if valid_digits else 0
+
+# Check for the 'liked by X and others' format
+def extract_liked_by_text(ocr_results):
+    for result in ocr_results:
+        if len(result) == 3:
+            bbox, text, prob = result
+            if 'LIKED BY' in text.upper():
+                liked_by_match = re.search(r'([0-9]+)\s+OTHERS', text, re.IGNORECASE)
+                if liked_by_match:
+                    return int(liked_by_match.group(1)) + 1  # Adding 1 to include the first user mentioned
+    return None
+
+# Check if "View Insights" or "collaborators" text is present
+def contains_view_insights_or_collaborators(ocr_results):
+    combined_text = "".join([result[1].lower().replace(' ', '') for result in ocr_results if len(result) == 3])
+    if "viewinsights" in combined_text or "collaborators" in combined_text:
+        return True
+    return False
+
+# Extract comments from the text like "View all X comments"
+def extract_comments_from_text(ocr_results):
+    for result in ocr_results:
+        if len(result) == 3:
+            bbox, text, prob = result
+            if 'VIEW ALL' in text.upper():
+                comments_match = re.search(r'VIEW ALL\s+([0-9]+)\s+COMMENTS', text, re.IGNORECASE)
+                if comments_match:
+                    return int(comments_match.group(1))
+    return None
+
+# Extract numbers even if there's noise or invalid characters after the number
+def extract_number_from_text(text):
+    number_match = re.search(r'(\d+)', text)
+    if number_match:
+        return int(number_match.group(1))
+    return 0
+
+@app.route('/get-post-count', methods=['POST'])
+def extract_counts():
+    data = request.get_json()
+    image_url = data.get('url')
+    platform = data.get('platform')
+
+    uploaded_img = load_image_from_url(image_url)
+    if uploaded_img is None:
+        return jsonify({"error": "Error loading image. Please check the URL."}), 400
+
+    gray_uploaded_img = cv2.cvtColor(uploaded_img, cv2.COLOR_BGR2GRAY)
+    height, width = uploaded_img.shape[:2]
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced_image = clahe.apply(gray_uploaded_img)
+    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    sharpened_image = cv2.filter2D(enhanced_image, -1, kernel)
+    check_area = sharpened_image[int(height * 0.70):int(height * 0.90), int(width * 0.00):int(width * 0.30)]
+    
+    reader = easyocr.Reader(['en'], gpu=False)
+    check_results = reader.readtext(check_area, detail=1)
+
+    if contains_view_insights_or_collaborators(check_results):
+        all_counts_area = sharpened_image[int(height * 0.78):int(height * 0.90), int(width * 0.00):int(width * 0.70)]
+    else:
+        all_counts_area = sharpened_image[int(height * 0.65):int(height * 0.78), int(width * 0.00):int(width * 0.70)]
+
+    ocr_results = reader.readtext(all_counts_area, detail=1)
+
+    likes_from_text = extract_liked_by_text(ocr_results)
+    comments_from_text = extract_comments_from_text(ocr_results)
+
+    if likes_from_text:
+        likes = likes_from_text
+    else:
+        extracted_digits = []
+        for result in ocr_results:
+            if len(result) == 3:
+                bbox, text, prob = result
+                cleaned_text = text.replace(' ', '').upper()
+                number_from_text = extract_number_from_text(cleaned_text)
+
+                if 'Q' in cleaned_text and number_from_text > 0:
+                    extracted_digits.append((number_from_text, bbox))
+                elif number_from_text > 0:
+                    extracted_digits.append((number_from_text, bbox))
+
+        if len(extracted_digits) >= 2:
+            likes, comments = extracted_digits[0][0], extracted_digits[1][0]
+            shares = extracted_digits[2][0] if len(extracted_digits) >= 3 else 0
+        else:
+            likes = extracted_digits[0][0] if len(extracted_digits) > 0 else 0
+            comments = comments_from_text if comments_from_text else (extracted_digits[1][0] if len(extracted_digits) > 1 else 0)
+            shares = 0
+
+    return jsonify({
+        "likes": likes,
+        "comments": comments})
 
 
 if __name__ == '__main__':
