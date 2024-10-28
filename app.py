@@ -824,6 +824,68 @@ def extract_number_from_text(text):
         return int(number_match.group(1))
     return 0
 
+# @app.route('/get-post-count', methods=['POST'])
+# def extract_counts():
+#     data = request.get_json()
+#     image_url = data.get('url')
+#     platform = data.get('platform')
+
+#     uploaded_img = load_image_from_url(image_url)
+#     if uploaded_img is None:
+#         return jsonify({"error": "Error loading image. Please check the URL."}), 400
+
+#     gray_uploaded_img = cv2.cvtColor(uploaded_img, cv2.COLOR_BGR2GRAY)
+#     height, width = uploaded_img.shape[:2]
+#     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+#     enhanced_image = clahe.apply(gray_uploaded_img)
+#     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+#     sharpened_image = cv2.filter2D(enhanced_image, -1, kernel)
+#     check_area = sharpened_image[int(height * 0.70):int(height * 0.90), int(width * 0.00):int(width * 0.30)]
+    
+#     reader = easyocr.Reader(['en'], gpu=False)
+#     check_results = reader.readtext(check_area)
+
+#     if contains_view_insights_or_collaborators(check_results):
+#         all_counts_area = sharpened_image[int(height * 0.78):int(height * 0.90), int(width * 0.00):int(width * 0.70)]
+#     else:
+#         all_counts_area = sharpened_image[int(height * 0.65):int(height * 0.78), int(width * 0.00):int(width * 0.70)]
+
+#     ocr_results = reader.readtext(all_counts_area)
+
+#     likes_from_text = extract_liked_by_text(ocr_results)
+#     comments_from_text = extract_comments_from_text(ocr_results)
+
+#     if likes_from_text:
+#         likes = likes_from_text
+#     else:
+#         extracted_digits = []
+#         for result in ocr_results:
+#             if len(result) == 3:
+#                 bbox, text, prob = result
+#                 cleaned_text = text.replace(' ', '').upper()
+#                 number_from_text = extract_number_from_text(cleaned_text)
+
+#                 if 'Q' in cleaned_text and number_from_text > 0:
+#                     extracted_digits.append((number_from_text, bbox))
+#                 elif number_from_text > 0:
+#                     extracted_digits.append((number_from_text, bbox))
+
+#         if len(extracted_digits) >= 2:
+#             likes, comments = extracted_digits[0][0], extracted_digits[1][0]
+#             shares = extracted_digits[2][0] if len(extracted_digits) >= 3 else 0
+#         else:
+#             likes = extracted_digits[0][0] if len(extracted_digits) > 0 else 0
+#             comments = comments_from_text if comments_from_text else (extracted_digits[1][0] if len(extracted_digits) > 1 else 0)
+#             shares = 0
+
+#     return jsonify({
+#         "likes": likes,
+#         "comments": comments,
+#         "platform":platform,
+#         "parameter":"likes,comments",
+#         "type":"post"})
+
+
 @app.route('/get-post-count', methods=['POST'])
 def extract_counts():
     data = request.get_json()
@@ -836,10 +898,14 @@ def extract_counts():
 
     gray_uploaded_img = cv2.cvtColor(uploaded_img, cv2.COLOR_BGR2GRAY)
     height, width = uploaded_img.shape[:2]
+    
+    # Enhance the image
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced_image = clahe.apply(gray_uploaded_img)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened_image = cv2.filter2D(enhanced_image, -1, kernel)
+    
+    # Define areas to check for text
     check_area = sharpened_image[int(height * 0.70):int(height * 0.90), int(width * 0.00):int(width * 0.30)]
     
     reader = easyocr.Reader(['en'], gpu=False)
@@ -852,8 +918,12 @@ def extract_counts():
 
     ocr_results = reader.readtext(all_counts_area)
 
+    # Extract counts from OCR results
     likes_from_text = extract_liked_by_text(ocr_results)
     comments_from_text = extract_comments_from_text(ocr_results)
+
+    # Initialize comments to prevent UnboundLocalError
+    comments = 0
 
     if likes_from_text:
         likes = likes_from_text
@@ -875,13 +945,18 @@ def extract_counts():
             shares = extracted_digits[2][0] if len(extracted_digits) >= 3 else 0
         else:
             likes = extracted_digits[0][0] if len(extracted_digits) > 0 else 0
-            comments = comments_from_text if comments_from_text else (extracted_digits[1][0] if len(extracted_digits) > 1 else 0)
+            comments = comments_from_text if comments_from_text else (
+                extracted_digits[1][0] if len(extracted_digits) > 1 else 0
+            )
             shares = 0
 
     return jsonify({
         "likes": likes,
         "comments": comments,
-        "platform":platform,"parameter":"likes,comments","type":"post"})
+        "platform": platform,
+        "parameter": "likes,comments",
+        "type": "post"
+    })
 
 
 
